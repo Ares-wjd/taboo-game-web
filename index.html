@@ -1,0 +1,255 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>AI 단어 설명 게임</title>
+  <style>
+    * {
+      box-sizing: border-box;
+    }
+    body {
+      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+      background: linear-gradient(135deg, #ece9e6, #ffffff);
+      margin: 0;
+      padding: 0;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      min-height: 100vh;
+    }
+    .container {
+      background: #fff;
+      width: 90%;
+      max-width: 600px;
+      padding: 30px;
+      border-radius: 16px;
+      box-shadow: 0 8px 20px rgba(0, 0, 0, 0.1);
+    }
+    h1, h2, h3 {
+      color: #333;
+      margin-bottom: 20px;
+    }
+    input[type="text"] {
+      padding: 12px;
+      width: 100%;
+      font-size: 16px;
+      margin-bottom: 15px;
+      border: 1px solid #ccc;
+      border-radius: 8px;
+    }
+    button {
+      padding: 12px 24px;
+      font-size: 16px;
+      color: white;
+      background-color: #4CAF50;
+      border: none;
+      border-radius: 8px;
+      cursor: pointer;
+      transition: background-color 0.3s;
+    }
+    button:hover {
+      background-color: #45a049;
+    }
+    #hint {
+      margin: 20px 0;
+      font-size: 18px;
+      color: #555;
+    }
+    #scoreBoard, #timer, #attempts, #result {
+      margin-top: 10px;
+      font-weight: bold;
+      color: #333;
+    }
+    #result {
+      font-size: 20px;
+      margin-top: 20px;
+    }
+    #loginForm, #gameContainer, #endScreen, #adminScreen {
+      transition: opacity 0.5s;
+    }
+    #ranking {
+      margin-top: 30px;
+      text-align: left;
+    }
+    ol {
+      padding-left: 20px;
+    }
+    li {
+      margin: 5px 0;
+      color: #444;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div id="loginForm">
+      <h2>이름과 학번을 입력하세요</h2>
+      <input type="text" id="studentId" placeholder="학번" />
+      <input type="text" id="studentName" placeholder="이름" />
+      <button onclick="login()">시작</button>
+    </div>
+
+    <div id="gameContainer" style="display:none">
+      <h1>단어 설명 게임</h1>
+      <div id="timer">남은 시간: 180초</div>
+      <div id="scoreBoard">점수: 0점</div>
+      <div id="attempts">남은 시도: 3</div>
+      <div id="hint">힌트가 여기에 표시됩니다</div>
+
+      <div id="inputArea">
+        <input type="text" id="guessInput" placeholder="정답을 입력하세요" />
+        <button onclick="checkAnswer()">제출</button>
+      </div>
+
+      <div id="result"></div>
+    </div>
+
+    <div id="endScreen" style="display:none">
+      <h2>게임 종료!</h2>
+      <div id="finalScore"></div>
+    </div>
+
+    <div id="adminScreen" style="display:none">
+      <h2>관리자 모드</h2>
+      <button onclick="resetRanking()">랭킹 초기화</button>
+    </div>
+
+    <div id="ranking">
+      <h3>랭킹</h3>
+      <ol id="rankingList"></ol>
+    </div>
+  </div>
+
+  <script>
+    let problems = [
+      { answer: "의자", hints: ["앉을 수 있음", "네 다리", "책상 옆에 있음"] },
+      { answer: "토끼", hints: ["귀가 긺", "풀을 먹음", "깡총깡총"] },
+    ];
+    let isAdmin = false;
+
+    function login() {
+      const id = document.getElementById("studentId").value;
+      const name = document.getElementById("studentName").value;
+      if (id === "7410" && name === "관리자") {
+        isAdmin = true;
+        document.getElementById("loginForm").style.display = "none";
+        document.getElementById("adminScreen").style.display = "block";
+      } else {
+        document.getElementById("loginForm").style.display = "none";
+        document.getElementById("gameContainer").style.display = "block";
+        startGame();
+      }
+    }
+
+    let currentProblem, currentHints, attempts = 3, score = 0, usedIndices = [];
+    let timeLeft = 180;
+    let timer;
+
+    function startGame() {
+      nextProblem();
+      timer = setInterval(() => {
+        document.getElementById("timer").textContent = `남은 시간: ${timeLeft}초`;
+        timeLeft--;
+        if (timeLeft < 0) {
+          clearInterval(timer);
+          endGame();
+        }
+      }, 1000);
+    }
+
+    function nextProblem() {
+      if (usedIndices.length === problems.length) {
+        clearInterval(timer);
+        score += Math.max(timeLeft, 0);
+        endGame();
+        return;
+      }
+      let index;
+      do {
+        index = Math.floor(Math.random() * problems.length);
+      } while (usedIndices.includes(index));
+
+      usedIndices.push(index);
+      currentProblem = problems[index];
+      currentHints = [...currentProblem.hints];
+      attempts = 3;
+      updateUI();
+    }
+
+    function updateUI() {
+      document.getElementById("attempts").textContent = `남은 시도: ${attempts}`;
+      document.getElementById("hint").textContent = currentHints[3 - attempts];
+      document.getElementById("guessInput").value = "";
+      document.getElementById("result").textContent = "";
+    }
+
+    function checkAnswer() {
+      const input = document.getElementById("guessInput").value.trim();
+      if (input === "") return;
+
+      if (input === currentProblem.answer) {
+        let point = attempts === 3 ? 5 : attempts === 2 ? 3 : 1;
+        score += point;
+        document.getElementById("scoreBoard").textContent = `점수: ${score}점`;
+        document.getElementById("result").textContent = `정답입니다! (+${point}점)`;
+        setTimeout(nextProblem, 1000);
+      } else {
+        attempts--;
+        if (attempts === 0) {
+          document.getElementById("result").textContent = `오답입니다! 정답은 "${currentProblem.answer}"입니다.`;
+          setTimeout(nextProblem, 1000);
+        } else {
+          updateUI();
+        }
+      }
+    }
+
+    function endGame() {
+      document.getElementById("gameContainer").style.display = "none";
+      document.getElementById("endScreen").style.display = "block";
+      document.getElementById("finalScore").textContent = `최종 점수: ${score}점`;
+
+      const name = document.getElementById("studentName").value;
+      const id = document.getElementById("studentId").value;
+      const newEntry = { id, name, score };
+
+      const storedRankings = JSON.parse(localStorage.getItem("rankings") || "[]");
+      const existingIndex = storedRankings.findIndex(entry => entry.id === id);
+      if (existingIndex !== -1) {
+        if (storedRankings[existingIndex].score < score) {
+          storedRankings[existingIndex].score = score;
+        }
+      } else {
+        storedRankings.push(newEntry);
+      }
+      storedRankings.sort((a, b) => b.score - a.score);
+      localStorage.setItem("rankings", JSON.stringify(storedRankings));
+      showRanking(storedRankings);
+    }
+
+    function showRanking(rankings) {
+      const rankingList = document.getElementById("rankingList");
+      rankingList.innerHTML = "";
+      rankings.slice(0, 10).forEach((entry, index) => {
+        const li = document.createElement("li");
+        const label = entry.id === document.getElementById("studentId").value ? " (본인)" : "";
+        li.textContent = `${index + 1}위 - ${entry.name} (${entry.id}): ${entry.score}점${label}`;
+        rankingList.appendChild(li);
+      });
+    }
+
+    function resetRanking() {
+      if (confirm("정말로 랭킹을 초기화하시겠습니까?")) {
+        localStorage.setItem("rankings", JSON.stringify([]));
+        showRanking([]);
+      }
+    }
+
+    window.onload = function() {
+      const storedRankings = JSON.parse(localStorage.getItem("rankings") || "[]");
+      showRanking(storedRankings);
+    };
+  </script>
+</body>
+</html>
