@@ -47,6 +47,7 @@
       border-radius: 8px;
       cursor: pointer;
       transition: background-color 0.3s;
+      margin: 5px;
     }
     button:hover {
       background-color: #45a049;
@@ -65,7 +66,8 @@
       font-size: 20px;
       margin-top: 20px;
     }
-    #loginForm, #gameContainer, #endScreen, #adminScreen {
+    #startScreen, #loginForm, #gameContainer, #endScreen, #adminScreen {
+      display: none;
       transition: opacity 0.5s;
     }
     #ranking {
@@ -79,10 +81,43 @@
       margin: 5px 0;
       color: #444;
     }
+    #answerDisplay {
+      margin-top: 15px;
+      font-size: 16px;
+      color: #999;
+    }
+    #explanationScreen p {
+      background-color: #f9f9f9;
+      padding: 15px;
+      border-radius: 10px;
+      line-height: 1.6;
+      color: #333;
+    }
   </style>
 </head>
 <body>
   <div class="container">
+    <div id="startScreen">
+      <h2>AI 단어 설명 게임</h2>
+      <button onclick="showLogin()">게임 시작</button>
+      <button onclick="showExplanation()">게임 설명</button>
+    </div>
+
+    <div id="explanationScreen" style="display:none">
+      <h2>게임 설명</h2>
+      <p>
+        이 게임은 인공지능이 제공하는 힌트를 보고 정답 단어를 맞히는 퀴즈 형식의 게임입니다.<br><br>
+        - 게임 시간은 총 180초입니다.<br>
+        - 문제마다 힌트는 최대 3개까지 제공되며, 최대 3번의 시도 기회가 주어집니다.<br>
+        - 정답을 맞힌 시도 횟수에 따라 점수가 달라집니다:<br>
+        &nbsp;&nbsp;ㆍ1번째 시도: +5점<br>
+        &nbsp;&nbsp;ㆍ2번째 시도: +3점<br>
+        &nbsp;&nbsp;ㆍ3번째 시도: +1점<br><br>
+        최종 점수는 랭킹에 등록되며, 최대 점수 기준으로 상위 5명이 표시됩니다.
+      </p>
+      <button onclick="backToStart()">돌아가기</button>
+    </div>
+
     <div id="loginForm">
       <h2>이름과 학번을 입력하세요</h2>
       <input type="text" id="studentId" placeholder="학번" />
@@ -90,7 +125,7 @@
       <button onclick="login()">시작</button>
     </div>
 
-    <div id="gameContainer" style="display:none">
+    <div id="gameContainer">
       <h1>단어 설명 게임</h1>
       <div id="timer">남은 시간: 180초</div>
       <div id="scoreBoard">점수: 0점</div>
@@ -103,14 +138,17 @@
       </div>
 
       <div id="result"></div>
+      <div id="answerDisplay"></div>
     </div>
 
-    <div id="endScreen" style="display:none">
+    <div id="endScreen">
       <h2>게임 종료!</h2>
       <div id="finalScore"></div>
+      <button onclick="goToStart()">처음으로 가기</button>
+      <button onclick="restartGame()">다시하기</button>
     </div>
 
-    <div id="adminScreen" style="display:none">
+    <div id="adminScreen">
       <h2>관리자 모드</h2>
       <button onclick="resetRanking()">랭킹 초기화</button>
     </div>
@@ -122,11 +160,61 @@
   </div>
 
   <script>
+    window.onload = function() {
+      document.getElementById("startScreen").style.display = "block";
+      const storedRankings = JSON.parse(localStorage.getItem("rankings") || "[]");
+      showRanking(storedRankings);
+    };
+
+    function showLogin() {
+      document.getElementById("startScreen").style.display = "none";
+      document.getElementById("loginForm").style.display = "block";
+    }
+
+    function showExplanation() {
+      document.getElementById("startScreen").style.display = "none";
+      document.getElementById("explanationScreen").style.display = "block";
+    }
+
+    function backToStart() {
+      document.getElementById("explanationScreen").style.display = "none";
+      document.getElementById("startScreen").style.display = "block";
+    }
+
+    function goToStart() {
+      document.getElementById("endScreen").style.display = "none";
+      document.getElementById("startScreen").style.display = "block";
+      score = 0;
+      usedIndices = [];
+      timeLeft = 180;
+    }
+
+    function restartGame() {
+      document.getElementById("endScreen").style.display = "none";
+      document.getElementById("gameContainer").style.display = "block";
+      score = 0;
+      usedIndices = [];
+      timeLeft = 180;
+      document.getElementById("scoreBoard").textContent = `점수: 0점`;
+      timer = setInterval(() => {
+        document.getElementById("timer").textContent = `남은 시간: ${timeLeft}초`;
+        timeLeft--;
+        if (timeLeft < 0) {
+          clearInterval(timer);
+          endGame();
+        }
+      }, 1000);
+      nextProblem();
+    }
+
     let problems = [
       { answer: "의자", hints: ["앉을 수 있음", "네 다리", "책상 옆에 있음"] },
       { answer: "토끼", hints: ["귀가 긺", "풀을 먹음", "깡총깡총"] },
     ];
     let isAdmin = false;
+    let currentProblem, currentHints, attempts = 3, score = 0, usedIndices = [];
+    let timeLeft = 180;
+    let timer;
 
     function login() {
       const id = document.getElementById("studentId").value;
@@ -142,10 +230,6 @@
       }
     }
 
-    let currentProblem, currentHints, attempts = 3, score = 0, usedIndices = [];
-    let timeLeft = 180;
-    let timer;
-
     function startGame() {
       nextProblem();
       timer = setInterval(() => {
@@ -159,9 +243,9 @@
     }
 
     function nextProblem() {
+      document.getElementById("answerDisplay").textContent = "";
       if (usedIndices.length === problems.length) {
         clearInterval(timer);
-        score += Math.max(timeLeft, 0);
         endGame();
         return;
       }
@@ -197,8 +281,9 @@
       } else {
         attempts--;
         if (attempts === 0) {
-          document.getElementById("result").textContent = `오답입니다! 정답은 "${currentProblem.answer}"입니다.`;
-          setTimeout(nextProblem, 1000);
+          document.getElementById("result").textContent = `오답입니다!`;
+          document.getElementById("answerDisplay").textContent = `정답: ${currentProblem.answer}`;
+          setTimeout(nextProblem, 2000);
         } else {
           updateUI();
         }
@@ -208,7 +293,6 @@
     function endGame() {
       document.getElementById("gameContainer").style.display = "none";
       document.getElementById("endScreen").style.display = "block";
-      document.getElementById("finalScore").textContent = `최종 점수: ${score}점`;
 
       const name = document.getElementById("studentName").value;
       const id = document.getElementById("studentId").value;
@@ -226,6 +310,10 @@
       storedRankings.sort((a, b) => b.score - a.score);
       localStorage.setItem("rankings", JSON.stringify(storedRankings));
       showRanking(storedRankings);
+
+      const myRank = storedRankings.findIndex(entry => entry.id === id) + 1;
+      const finalScoreText = `최종 점수: ${score}점 (전체 ${myRank}위)`;
+      document.getElementById("finalScore").textContent = finalScoreText;
     }
 
     function showRanking(rankings) {
@@ -245,11 +333,6 @@
         showRanking([]);
       }
     }
-
-    window.onload = function() {
-      const storedRankings = JSON.parse(localStorage.getItem("rankings") || "[]");
-      showRanking(storedRankings);
-    };
   </script>
 </body>
 </html>
